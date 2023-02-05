@@ -177,5 +177,6 @@ class BufferPoolManagerInstance : public BufferPoolManager {
   }
 
   // TODO(student): You may add additional private members and helper functions
+  auto GetNewFrame(frame_id_t &new_frame_idx) -> bool;
 };
 }  // namespace bustub
