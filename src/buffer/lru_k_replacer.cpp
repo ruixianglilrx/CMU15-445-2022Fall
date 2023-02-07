@@ -18,6 +18,7 @@ namespace bustub {
 LRUKReplacer::LRUKReplacer(size_t num_frames, size_t k) : replacer_size_(num_frames), k_(k) {}
 
 auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
+  std::scoped_lock<std::mutex> lock(latch_);
   size_t max_distance = 0;
   size_t min_timestamp = LONG_MAX;
   size_t min_record_nums = LONG_MAX;
@@ -64,6 +65,7 @@ auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
 }
 
 void LRUKReplacer::RecordAccess(frame_id_t frame_id) {
+  std::scoped_lock<std::mutex> lock(latch_);
   if (slots_.find(frame_id) == slots_.end()) {
     BUSTUB_ASSERT((curr_size_ < replacer_size_), "replacer out of space!");
     slots_.emplace(frame_id, Slot());
@@ -85,6 +87,7 @@ void LRUKReplacer::RecordAccess(frame_id_t frame_id) {
 void LRUKReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {
   BUSTUB_ASSERT((slots_.find(frame_id) != slots_.end()), "frame_id in valid");
 
+  std::scoped_lock<std::mutex> lock(latch_);
   auto &tslot = slots_[frame_id];
   if (tslot.evictable_ && !set_evictable) {
     curr_size_--;
@@ -96,6 +99,7 @@ void LRUKReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {
 }
 
 void LRUKReplacer::Remove(frame_id_t frame_id) {
+  std::scoped_lock<std::mutex> lock(latch_);
   if (slots_.find(frame_id) == slots_.end()) {
     return;
   }

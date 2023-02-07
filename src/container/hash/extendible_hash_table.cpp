@@ -16,6 +16,7 @@
 #include <list>
 #include <utility>
 
+#include "common/logger.h"
 #include "container/hash/extendible_hash_table.h"
 #include "storage/page/page.h"
 
@@ -23,6 +24,7 @@ namespace bustub {
 
 template <typename K, typename V>
 ExtendibleHashTable<K, V>::ExtendibleHashTable(size_t bucket_size) : bucket_size_(bucket_size) {
+  LOG_INFO("initiating hash :bucket_size= %zu", bucket_size);
   std::shared_ptr<Bucket> bptr = std::make_shared<Bucket>(bucket_size, global_depth_);
   latches_[bptr] = std::make_unique<std::shared_mutex>();
   dir_.push_back(bptr);
@@ -80,6 +82,7 @@ auto ExtendibleHashTable<K, V>::Find(const K &key, V &value) -> bool {
 template <typename K, typename V>
 auto ExtendibleHashTable<K, V>::Remove(const K &key) -> bool {
   // UNREACHABLE("not implemented");
+  LOG_INFO("remove %p", &key);
   int idx = IndexOf(key);
   latches_[dir_[idx]]->lock();
   auto tmp = dir_[idx]->Remove(key);
@@ -90,11 +93,12 @@ auto ExtendibleHashTable<K, V>::Remove(const K &key) -> bool {
 template <typename K, typename V>
 void ExtendibleHashTable<K, V>::Insert(const K &key, const V &value) {
   // UNREACHABLE("not implemented");
+  LOG_INFO("insert key %p value %p", &key, &value);
   int idx = IndexOf(key);
   latches_[dir_[idx]]->lock();
-  V tmp = value;
-  if (dir_[idx]->Find(key, tmp)) {
-    dir_[idx]->Insert(key, tmp);
+  V tvalue = value;
+  if (dir_[idx]->Find(key, tvalue)) {
+    dir_[idx]->Insert(key, value);
     latches_[dir_[idx]]->unlock();
     return;
   }
@@ -107,10 +111,11 @@ void ExtendibleHashTable<K, V>::Insert(const K &key, const V &value) {
       Insert(key, value);
     } else {
       dir_[idx]->IncrementDepth();
-      std::shared_ptr<Bucket> bptr = std::make_shared<Bucket>(bucket_size_, global_depth_);
+      std::shared_ptr<Bucket> bptr =
+          std::make_shared<Bucket>(bucket_size_, ExtendibleHashTable<K, V>::GetGlobalDepth());
       // latches_.emplace(bptr,tlock);
       latches_[bptr] = std::make_unique<std::shared_mutex>();
-      int tmp = (1 << (global_depth_ - 1));
+      int tmp = (1 << (ExtendibleHashTable<K, V>::GetGlobalDepth() - 1));
       if (idx < tmp) {
         dir_[idx + tmp] = bptr;
         RedistributeBucket(dir_[idx]);
@@ -123,13 +128,15 @@ void ExtendibleHashTable<K, V>::Insert(const K &key, const V &value) {
       Insert(key, value);
     }
   } else {
-    dir_[idx]->Insert(key, tmp);
+    dir_[idx]->Insert(key, value);
     latches_[dir_[idx]]->unlock();
   }
 }
 
 template <typename K, typename V>
 void ExtendibleHashTable<K, V>::DoubleDir(const int &idx) {
+  LOG_INFO("Double dir");
+  latch_.lock();
   std::vector<std::shared_ptr<Bucket>> tmp_dir(1 << (global_depth_ + 1), nullptr);
   for (int i = 0; i < (1 << global_depth_); i++) {
     tmp_dir[i] = dir_[i];
@@ -144,10 +151,12 @@ void ExtendibleHashTable<K, V>::DoubleDir(const int &idx) {
   // latches_.emplace(bptr,tlock);
   latches_[bptr] = std::make_unique<std::shared_mutex>();
   ++global_depth_;
+  latch_.unlock();
 }
 
 template <typename K, typename V>
 void ExtendibleHashTable<K, V>::RedistributeBucket(std::shared_ptr<Bucket> bucket) {
+  LOG_INFO("Redistributing");
   std::list<std::pair<K, V>> list = bucket->GetItems();
   for (const auto &it : list) {
     int idx = IndexOf(it.first);
